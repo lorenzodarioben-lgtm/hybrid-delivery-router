@@ -55,3 +55,9 @@ The test suite checks:
 - Bumpiness scores are synthetic but structured to support explainable fuzzy rules.
 - The current implementation optimizes time only; a production router could add
   emissions, delivery windows, turn costs, or risk preferences.
+
+## Route Comparison Visual
+
+The full route comparison is kept here rather than embedded in the README, where the six-panel labels are too small to read comfortably.
+
+![Six-panel route comparison](six_panel_route_comparison.png)

@@ -1,90 +1,72 @@
 # Hybrid Delivery Router
 
-A Python route-planning project that combines **A\*** search, a hand-built
-**fuzzy logic speed controller**, and **reactive replanning** for a delivery
-network with changing road constraints.
+A compact Python route-planning project that combines A* search, a fuzzy safe-speed controller, and reactive replanning on a changing delivery network.
 
-The system plans the fastest safe route for a cargo vehicle. Road segments have
-both distance and bumpiness. Cargo has a fragility level. The fuzzy controller
-turns fragility and bumpiness into a safe speed for each road segment, then A*
-uses those speeds as edge costs. When a school-zone speed cap appears mid-route,
-the agent replans from its current location instead of blindly following the old
-path.
+## Problem
 
-![Reactive agent flowchart](assets/reactive_agent_flowchart.png)
+A delivery route is not always just the shortest path. In this simulation, each road segment has a distance and a bumpiness score, while the vehicle carries cargo with a fragility level. The planner needs to choose the fastest route that still respects cargo safety, then adapt if a school-zone speed cap appears after the vehicle has already started driving.
 
-## Why This Project Matters
+## System Behaviour
 
-This is more than a shortest-path notebook. It demonstrates how to combine
-multiple AI techniques into one testable decision system:
+The system models a 22-intersection, 35-road network. For a requested start and goal, it:
 
-- **A\* search** for optimal path planning on a weighted graph.
-- **Uniform-cost search** as the uninformed optimality baseline.
-- **Custom admissible heuristics** based on straight-line distance and maximum
-  achievable speed.
-- **Fuzzy inference from scratch** using NumPy, not a fuzzy-logic package.
-- **Reactive replanning** when road constraints change during the journey.
-- **Safety checks** for heuristic admissibility, fuzzy monotonicity,
-  unreachable-route handling, and phase-aware travel-time consistency.
+- converts cargo fragility and road bumpiness into a safe speed for each segment;
+- runs A* on travel time, not raw distance;
+- activates deterministic school-zone caps mid-journey;
+- preserves the already-driven prefix at its original speeds;
+- replans only the remaining tail under the new capped-road speed model.
 
-## Project Structure
+## Architecture
 
-```text
-.
-|-- .github/workflows/tests.yml
-|-- assets/reactive_agent_flowchart.png
-|-- docs/technical_notes.md
-|-- examples/run_demo.py
-|-- notebooks/hybrid_delivery_router.ipynb
-|-- src/hybrid_delivery_router/
-|   |-- agent.py
-|   |-- evaluation.py
-|   |-- fuzzy.py
-|   |-- map_model.py
-|   `-- planner.py
-|-- tests/test_hybrid_delivery_router.py
-|-- pyproject.toml
-|-- requirements.txt
-`-- README.md
-```
+![Hybrid routing workflow](assets/hybrid_routing_workflow.png)
 
-## Core Results
+The package keeps the notebook out of the critical path: map data, fuzzy inference, A* planning, reactive replanning, and evaluation helpers live under `src/hybrid_delivery_router/` and are exercised by tests.
+
+## Fuzzy Controller
+
+The fuzzy controller is implemented from scratch with NumPy. It uses cargo fragility and road bumpiness memberships to activate nine rules, then returns a crisp safe speed between 40 and 100 km/h.
+
+![Fuzzy safe-speed response](assets/fuzzy_safe_speed_surface.png)
+
+Validated consequent centroids are `Slow = 51.6`, `Medium = 70.0`, and `Fast = 88.4` km/h. The tested response surface has zero monotonicity violations, so increasing fragility or bumpiness never increases the recommended speed.
+
+## Results
 
 Default delivery target: `N1 -> N18`.
 
-| Scenario | Route | Time | A* nodes | Rerouted |
-|---|---|---:|---:|:---:|
-| Baseline constant speed | `N1 -> N2 -> N9 -> N14 -> N17 -> N18` | 1.74 min | 16 | No |
-| Fuzzy A*, robust cargo | `N1 -> N2 -> N9 -> N14 -> N15 -> N18` | 2.03 min | 15 | No |
-| Fuzzy A*, moderate cargo | `N1 -> N2 -> N9 -> N14 -> N17 -> N18` | 2.25 min | 17 | No |
-| Fuzzy A*, delicate cargo | `N1 -> N2 -> N9 -> N14 -> N17 -> N18` | 2.79 min | 17 | No |
-| Reactive replanning, robust cargo | `N1 -> N2 -> N3 -> N10 -> N14 -> N15 -> N18` | 2.88 min | 31 | Yes |
-| Reactive replanning, moderate cargo | `N1 -> N2 -> N3 -> N10 -> N14 -> N15 -> N18` | 3.06 min | 34 | Yes |
-| Reactive replanning, delicate cargo | `N1 -> N2 -> N9 -> N14 -> N15 -> N18` | 3.50 min | 34 | Yes |
+| Scenario | Route | Time | Distance | A* nodes | Rerouted |
+|---|---|---:|---:|---:|:---:|
+| Baseline constant speed | `N1 -> N2 -> N9 -> N14 -> N17 -> N18` | 1.74 min | 2.90 km | 16 | No |
+| Fuzzy A*, robust cargo | `N1 -> N2 -> N9 -> N14 -> N15 -> N18` | 2.03 min | 2.90 km | 15 | No |
+| Fuzzy A*, moderate cargo | `N1 -> N2 -> N9 -> N14 -> N17 -> N18` | 2.25 min | 2.90 km | 17 | No |
+| Fuzzy A*, delicate cargo | `N1 -> N2 -> N9 -> N14 -> N17 -> N18` | 2.79 min | 2.90 km | 17 | No |
+| Reactive replanning, robust cargo | `N1 -> N2 -> N3 -> N10 -> N14 -> N15 -> N18` | 2.88 min | 3.30 km | 31 | Yes |
+| Reactive replanning, moderate cargo | `N1 -> N2 -> N3 -> N10 -> N14 -> N15 -> N18` | 3.06 min | 3.30 km | 34 | Yes |
+| Reactive replanning, delicate cargo | `N1 -> N2 -> N9 -> N14 -> N15 -> N18` | 3.50 min | 2.90 km | 34 | Yes |
 
-## Verification Highlights
+For a moderate-fragility delivery, the initial fuzzy A* route is partly abandoned after school-zone activation. The first segment remains committed; the remaining route is replanned from `N2`.
 
-The automated tests cover the engineering claims behind the model:
+![Moderate replanning route comparison](assets/moderate_replanning_routes.png)
 
-- The graph has 22 nodes, 35 undirected road segments, and remains connected.
-- The inherited missing `N8 <-> N9` link is represented as an absent edge.
-- Baseline A* returns the same optimal cost as uniform-cost search.
-- Fuzzy A* returns the same optimal cost as uniform-cost search for all main cargo levels.
-- The good heuristic has `0 / 21` admissibility violations.
-- A deliberately bad `straight_line / 40 km/h` heuristic has `13 / 21`
-  violations, showing why heuristic design matters.
-- The fuzzy controller has zero monotonicity violations: it never increases safe
-  speed when cargo becomes more fragile or the road becomes rougher.
-- Reactive replanning keeps the already-driven prefix at pre-zone speeds and
-  applies the 40 km/h cap only to the replanned tail.
-- Unreachable routes return `None` / infinity at planner level and raise a clear
-  error at reactive-agent level.
+The full six-panel route comparison is kept in [docs/six_panel_route_comparison.png](docs/six_panel_route_comparison.png) so the main README stays readable.
 
-## Quick Start
+## Validation
 
-Use CPython from python.org, the Windows `py` launcher, or Anaconda. Avoid MSYS2
-Python for this project unless you already have scientific wheels configured,
-because NumPy may otherwise build from source.
+The automated tests check the claims that matter for a portfolio review:
+
+- graph integrity: 22 nodes, 35 undirected road segments, connected network, and the intentionally absent `N8 <-> N9` edge;
+- A* optimality against uniform-cost search for the constant-speed baseline and fuzzy speed model;
+- heuristic admissibility, with `0 / 21` violations for the project heuristic and `13 / 21` for a deliberately bad school-zone heuristic;
+- fuzzy-controller bounds and monotonicity;
+- school-zone caps applying only after activation;
+- reactive replanning with phase-aware route-cost calculation;
+- clean handling of start-equals-goal and unreachable-route cases.
+
+CI runs the same unittest suite through GitHub Actions.
+
+## Usage
+
+Use CPython from python.org, the Windows `py` launcher, or Anaconda. Avoid MSYS2 Python unless you already have scientific wheels configured, because NumPy may otherwise build from source.
 
 Windows PowerShell:
 
@@ -92,9 +74,9 @@ Windows PowerShell:
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m pip install -e .
-.\.venv\Scripts\python.exe examplesun_demo.py
+.\.venv\Scripts\python.exe examples/run_demo.py
 .\.venv\Scripts\python.exe -m unittest discover -s tests
-.\.venv\Scripts\python.exe -m jupyter nbconvert --to notebook --execute notebooks\hybrid_delivery_router.ipynb --output executed.ipynb --output-dir .audit_outputs
+.\.venv\Scripts\python.exe -m jupyter nbconvert --to notebook --execute notebooks/hybrid_delivery_router.ipynb --output executed.ipynb --output-dir .audit_outputs
 ```
 
 macOS/Linux:
@@ -108,7 +90,7 @@ python3 -m venv .venv
 ./.venv/bin/python -m jupyter nbconvert --to notebook --execute notebooks/hybrid_delivery_router.ipynb --output executed.ipynb --output-dir .audit_outputs
 ```
 
-## Example Usage
+Minimal API example:
 
 ```python
 from hybrid_delivery_router import (
@@ -132,9 +114,36 @@ print(result.path)
 print(round(result.time_min, 2))
 ```
 
-## Design Notes
+## Limitations
 
-The package is intentionally small and inspectable. The notebook is now only a
-presentation layer; the core logic lives in `src/` and is covered by tests. See
-[docs/technical_notes.md](docs/technical_notes.md) for the modelling assumptions,
-heuristic reasoning, and current limitations.
+This is a deterministic simulation, not a live navigation system. It uses a compact synthetic road graph, synthetic bumpiness scores, and deterministic school-zone activation. It optimizes travel time only; production routing would need live traffic, turn costs, delivery windows, emissions, legal road rules, and richer risk modelling.
+
+## Repository Layout
+
+```text
+.
+|-- .github/workflows/tests.yml
+|-- assets/
+|   |-- fuzzy_safe_speed_surface.png
+|   |-- hybrid_routing_workflow.png
+|   `-- moderate_replanning_routes.png
+|-- docs/
+|   |-- six_panel_route_comparison.png
+|   `-- technical_notes.md
+|-- examples/run_demo.py
+|-- notebooks/hybrid_delivery_router.ipynb
+|-- src/hybrid_delivery_router/
+|   |-- agent.py
+|   |-- evaluation.py
+|   |-- fuzzy.py
+|   |-- map_model.py
+|   `-- planner.py
+|-- tests/test_hybrid_delivery_router.py
+|-- pyproject.toml
+|-- requirements.txt
+`-- README.md
+```
+
+## Further Reading
+
+See [docs/technical_notes.md](docs/technical_notes.md) for modelling assumptions, heuristic reasoning, and implementation notes. The public notebook, [notebooks/hybrid_delivery_router.ipynb](notebooks/hybrid_delivery_router.ipynb), provides a step-by-step walkthrough using the package code.
