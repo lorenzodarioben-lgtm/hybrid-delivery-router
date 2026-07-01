@@ -1,0 +1,33 @@
+# Local/private coursework archive. Kept for recovery, never for GitHub.
+_private_coursework_archive/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+env/
+
+# Raw submission/office/video files that can contain private metadata
+S224*/
+S224*
+NEW_ONE*
+SIT215*
+*.docx
+*.mp4
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
