@@ -24,32 +24,28 @@ multiple AI techniques into one testable decision system:
   achievable speed.
 - **Fuzzy inference from scratch** using NumPy, not a fuzzy-logic package.
 - **Reactive replanning** when road constraints change during the journey.
-- **Safety checks** for heuristic admissibility, fuzzy monotonicity, and
-  phase-aware travel-time consistency.
+- **Safety checks** for heuristic admissibility, fuzzy monotonicity,
+  unreachable-route handling, and phase-aware travel-time consistency.
 
 ## Project Structure
 
 ```text
 .
-|-- assets/
-|   `-- reactive_agent_flowchart.png
-|-- docs/
-|   `-- technical_notes.md
-|-- examples/
-|   `-- run_demo.py
-|-- notebooks/
-|   `-- hybrid_delivery_router.ipynb
-|-- src/
-|   `-- hybrid_delivery_router/
-|       |-- agent.py
-|       |-- evaluation.py
-|       |-- fuzzy.py
-|       |-- map_model.py
-|       `-- planner.py
-|-- tests/
-|   `-- test_hybrid_delivery_router.py
-|-- README.md
-`-- requirements.txt
+|-- .github/workflows/tests.yml
+|-- assets/reactive_agent_flowchart.png
+|-- docs/technical_notes.md
+|-- examples/run_demo.py
+|-- notebooks/hybrid_delivery_router.ipynb
+|-- src/hybrid_delivery_router/
+|   |-- agent.py
+|   |-- evaluation.py
+|   |-- fuzzy.py
+|   |-- map_model.py
+|   `-- planner.py
+|-- tests/test_hybrid_delivery_router.py
+|-- pyproject.toml
+|-- requirements.txt
+`-- README.md
 ```
 
 ## Core Results
@@ -71,7 +67,9 @@ Default delivery target: `N1 -> N18`.
 The automated tests cover the engineering claims behind the model:
 
 - The graph has 22 nodes, 35 undirected road segments, and remains connected.
+- The inherited missing `N8 <-> N9` link is represented as an absent edge.
 - Baseline A* returns the same optimal cost as uniform-cost search.
+- Fuzzy A* returns the same optimal cost as uniform-cost search for all main cargo levels.
 - The good heuristic has `0 / 21` admissibility violations.
 - A deliberately bad `straight_line / 40 km/h` heuristic has `13 / 21`
   violations, showing why heuristic design matters.
@@ -79,21 +77,35 @@ The automated tests cover the engineering claims behind the model:
   speed when cargo becomes more fragile or the road becomes rougher.
 - Reactive replanning keeps the already-driven prefix at pre-zone speeds and
   applies the 40 km/h cap only to the replanned tail.
+- Unreachable routes return `None` / infinity at planner level and raise a clear
+  error at reactive-agent level.
 
 ## Quick Start
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-pip install -r requirements.txt
-python examples/run_demo.py
-python -m unittest discover -s tests
+Use CPython from python.org, the Windows `py` launcher, or Anaconda. Avoid MSYS2
+Python for this project unless you already have scientific wheels configured,
+because NumPy may otherwise build from source.
+
+Windows PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\python.exe examplesun_demo.py
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+.\.venv\Scripts\python.exe -m jupyter nbconvert --to notebook --execute notebooks\hybrid_delivery_router.ipynb --output executed.ipynb --output-dir .audit_outputs
 ```
 
-On macOS/Linux, activate the environment with:
+macOS/Linux:
 
 ```bash
-source .venv/bin/activate
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+./.venv/bin/python -m pip install -e .
+./.venv/bin/python examples/run_demo.py
+./.venv/bin/python -m unittest discover -s tests
+./.venv/bin/python -m jupyter nbconvert --to notebook --execute notebooks/hybrid_delivery_router.ipynb --output executed.ipynb --output-dir .audit_outputs
 ```
 
 ## Example Usage

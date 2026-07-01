@@ -31,3 +31,5 @@ SIT215*
 Thumbs.db
 .vscode/
 .idea/
+.audit_outputs/
+*.egg-info/

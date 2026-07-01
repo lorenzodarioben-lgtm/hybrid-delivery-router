@@ -8,6 +8,14 @@ dependencies = [
   "numpy>=1.26",
 ]
 
+[project.optional-dependencies]
+notebook = [
+  "pandas>=2.0",
+  "matplotlib>=3.7",
+  "notebook>=7.0",
+  "nbconvert>=7.0",
+]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 
