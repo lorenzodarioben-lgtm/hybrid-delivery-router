@@ -1,4 +1,4 @@
-"""A* and uniform-cost planning over the delivery graph."""
+"""A* and uniform-cost planning over a typed delivery graph contract."""
 
 from __future__ import annotations
 
@@ -6,37 +6,43 @@ import heapq
 import itertools
 import math
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from typing import Protocol
 
-from .map_model import BoxHillDeliveryMap
+from .domain import RoutePlan, ScoreBreakdown, SearchEvent, SearchStatistics
 
 SpeedFunction = Callable[[str, str], float]
 HeuristicFunction = Callable[[str, str], float]
 
 
-@dataclass(frozen=True)
-class RouteResult:
-    path: list[str] | None
-    time_min: float
-    dist_km: float
-    nodes_expanded: int
-    max_frontier: int
-    trace: list[dict] = field(default_factory=list)
+class RoutingGraph(Protocol):
+    """The small graph surface the planner needs from any network implementation."""
+
+    V_MAX: float
+
+    def neighbours(self, node: str) -> list[str]: ...
+
+    def edge_km(self, start: str, end: str) -> float: ...
+
+    def straight_line_km(self, start: str, end: str) -> float: ...
+
+
+RouteResult = RoutePlan
 
 
 class HybridPlanner:
-    """A* planner where each edge cost is travel time."""
+    """Plan minimum travel-time paths over any graph satisfying :class:`RoutingGraph`."""
 
-    def __init__(self, env: BoxHillDeliveryMap) -> None:
-        self.env = env
+    def __init__(self, network: RoutingGraph) -> None:
+        self.network = network
+        self.env = network
 
     def heuristic(self, node: str, goal: str) -> float:
-        return self.env.straight_line_km(node, goal) / self.env.V_MAX * 60.0
+        return self.network.straight_line_km(node, goal) / self.network.V_MAX * 60.0
 
     @staticmethod
     def edge_time_min(km: float, speed_kmh: float) -> float:
-        if speed_kmh <= 0:
-            raise ValueError("speed_kmh must be positive")
+        if not math.isfinite(speed_kmh) or speed_kmh <= 0:
+            raise ValueError("speed_kmh must be a positive finite value")
         return km / speed_kmh * 60.0
 
     def astar(
@@ -46,82 +52,105 @@ class HybridPlanner:
         speed_fn: SpeedFunction,
         h_fn: HeuristicFunction | None = None,
         record_trace: bool = False,
-    ) -> RouteResult:
+    ) -> RoutePlan:
         h = h_fn if h_fn is not None else self.heuristic
         tie_break = itertools.count()
-        frontier: list[tuple[float, int, str]] = [(h(start, goal), next(tie_break), start)]
+        frontier: list[tuple[float, int, str, float]] = [
+            (h(start, goal), next(tie_break), start, 0.0)
+        ]
         g_score: dict[str, float] = {start: 0.0}
         parent: dict[str, str] = {}
         closed: set[str] = set()
-        popped = 0
+        selected = 0
         peak_frontier = 1
-        trace: list[dict] = []
+        trace: list[SearchEvent] = []
 
         while frontier:
             peak_frontier = max(peak_frontier, len(frontier))
-            _, _, node = heapq.heappop(frontier)
+            _priority, _tie, node, queued_g = heapq.heappop(frontier)
+            if queued_g != g_score.get(node):
+                continue
             if node in closed:
                 continue
             closed.add(node)
-            popped += 1
+            selected += 1
+            h_value = h(node, goal)
 
             if record_trace:
-                h_value = h(node, goal)
                 trace.append(
-                    {
-                        "order": popped,
-                        "node": node,
-                        "g_min": round(g_score[node], 4),
-                        "h_min": round(h_value, 4),
-                        "f_min": round(g_score[node] + h_value, 4),
-                    }
+                    SearchEvent(
+                        kind="select",
+                        order=selected,
+                        node=node,
+                        g_min=g_score[node],
+                        h_min=h_value,
+                        f_min=g_score[node] + h_value,
+                        frontier_size=len(frontier),
+                    )
                 )
 
             if node == goal:
                 path = self._rebuild(parent, start, goal)
-                return RouteResult(
-                    path, g_score[node], self.path_km(path), popped, peak_frontier, trace
+                return RoutePlan(
+                    path=path,
+                    time_min=g_score[node],
+                    distance_km=self.path_km(path),
+                    statistics=SearchStatistics(selected, peak_frontier),
+                    trace=tuple(trace),
+                    score=ScoreBreakdown(travel_time=g_score[node], total=g_score[node]),
                 )
 
-            for neighbor in self.env.neighbours(node):
+            for neighbor in self.network.neighbours(node):
                 step_cost = self.edge_time_min(
-                    self.env.edge_km(node, neighbor), speed_fn(node, neighbor)
+                    self.network.edge_km(node, neighbor), speed_fn(node, neighbor)
                 )
                 candidate_g = g_score[node] + step_cost
-                if neighbor not in g_score or candidate_g < g_score[neighbor]:
+                if candidate_g < g_score.get(neighbor, math.inf):
                     g_score[neighbor] = candidate_g
                     parent[neighbor] = node
                     heapq.heappush(
-                        frontier, (candidate_g + h(neighbor, goal), next(tie_break), neighbor)
+                        frontier,
+                        (candidate_g + h(neighbor, goal), next(tie_break), neighbor, candidate_g),
                     )
 
-        return RouteResult(None, math.inf, math.inf, popped, peak_frontier, trace)
+        return RoutePlan(
+            path=None,
+            time_min=math.inf,
+            distance_km=math.inf,
+            statistics=SearchStatistics(selected, peak_frontier),
+            trace=tuple(trace),
+        )
 
-    def uniform_cost(self, start: str, goal: str, speed_fn: SpeedFunction) -> RouteResult:
+    def uniform_cost(self, start: str, goal: str, speed_fn: SpeedFunction) -> RoutePlan:
         return self.astar(start, goal, speed_fn, h_fn=lambda _node, _goal: 0.0)
 
     @staticmethod
-    def _rebuild(parent: dict[str, str], start: str, goal: str) -> list[str]:
+    def _rebuild(parent: dict[str, str], start: str, goal: str) -> tuple[str, ...]:
         if start == goal:
-            return [start]
+            return (start,)
         path = [goal]
         current = goal
         while current != start:
             current = parent[current]
             path.append(current)
-        return path[::-1]
+        return tuple(reversed(path))
 
-    def path_km(self, path: list[str]) -> float:
-        return sum(self.env.edge_km(path[i], path[i + 1]) for i in range(len(path) - 1))
+    def path_km(self, path: tuple[str, ...] | list[str]) -> float:
+        return sum(
+            self.network.edge_km(path[index], path[index + 1]) for index in range(len(path) - 1)
+        )
 
-    def path_time_min(self, path: list[str], speed_fn: SpeedFunction) -> float:
+    def path_time_min(self, path: tuple[str, ...] | list[str], speed_fn: SpeedFunction) -> float:
         return sum(
             self.edge_time_min(
-                self.env.edge_km(path[i], path[i + 1]), speed_fn(path[i], path[i + 1])
+                self.network.edge_km(path[index], path[index + 1]),
+                speed_fn(path[index], path[index + 1]),
             )
-            for i in range(len(path) - 1)
+            for index in range(len(path) - 1)
         )
 
 
 def constant_speed(speed_kmh: float = 100.0) -> SpeedFunction:
-    return lambda _u, _v: speed_kmh
+    """Return a speed function that applies a constant legal speed to every edge."""
+
+    return lambda _start, _end: speed_kmh

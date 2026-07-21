@@ -9,9 +9,12 @@ from hybrid_delivery_router import (
     DEFAULT_GOAL,
     DEFAULT_START,
     BoxHillDeliveryMap,
+    CargoProfile,
     FuzzySpeedController,
     HybridPlanner,
     ReactiveAgent,
+    RoadSegment,
+    RouteObjective,
     cargo_top_speed,
     constant_speed,
     fuzzy_informed_heuristic,
@@ -21,6 +24,7 @@ from hybrid_delivery_router import (
 from hybrid_delivery_router.evaluation import (
     admissibility_audit,
     bad_school_zone_heuristic,
+    master_comparison,
     phase_aware_breakdown,
 )
 
@@ -47,7 +51,7 @@ class HybridDeliveryRouterTest(unittest.TestCase):
         speed = constant_speed(100.0)
         astar = self.planner.astar(DEFAULT_START, DEFAULT_GOAL, speed)
         ucs = self.planner.uniform_cost(DEFAULT_START, DEFAULT_GOAL, speed)
-        self.assertEqual(astar.path, ["N1", "N2", "N9", "N14", "N17", "N18"])
+        self.assertEqual(astar.path, ("N1", "N2", "N9", "N14", "N17", "N18"))
         self.assertAlmostEqual(astar.dist_km, 2.9)
         self.assertAlmostEqual(astar.time_min, 1.74)
         self.assertEqual(astar.nodes_expanded, 16)
@@ -56,7 +60,7 @@ class HybridDeliveryRouterTest(unittest.TestCase):
 
     def test_start_equals_goal_and_unreachable_route_handling(self):
         same = self.planner.astar("N1", "N1", constant_speed(100.0))
-        self.assertEqual(same.path, ["N1"])
+        self.assertEqual(same.path, ("N1",))
         self.assertEqual(same.dist_km, 0)
         self.assertEqual(same.time_min, 0)
 
@@ -106,13 +110,16 @@ class HybridDeliveryRouterTest(unittest.TestCase):
         robust = self.planner.astar(
             DEFAULT_START, DEFAULT_GOAL, fuzzy_speed(self.env, self.controller, 2.0), h_fn=robust_h
         )
-        self.assertEqual(robust.path, ["N1", "N2", "N9", "N14", "N15", "N18"])
+        self.assertEqual(robust.path, ("N1", "N2", "N9", "N14", "N15", "N18"))
         self.assertAlmostEqual(robust.time_min, 2.0322, places=4)
         self.assertEqual(robust.nodes_expanded, 15)
 
         agent = ReactiveAgent(self.env, self.controller, self.planner)
         journey = agent.run(DEFAULT_START, DEFAULT_GOAL, 2.0)
-        self.assertEqual(journey.actual_path, ["N1", "N2", "N3", "N10", "N14", "N15", "N18"])
+        self.assertEqual(
+            journey.actual_path,
+            ("N1", "N2", "N3", "N10", "N14", "N15", "N18"),
+        )
         self.assertTrue(journey.rerouted)
         self.assertAlmostEqual(journey.actual_min, 2.8785, places=4)
         self.assertEqual(journey.total_planning_nodes, 31)
@@ -147,6 +154,17 @@ class HybridDeliveryRouterTest(unittest.TestCase):
             astar = self.planner.astar(DEFAULT_START, DEFAULT_GOAL, speed, h_fn=heuristic)
             ucs = self.planner.uniform_cost(DEFAULT_START, DEFAULT_GOAL, speed)
             self.assertAlmostEqual(astar.time_min, ucs.time_min)
+
+    def test_domain_models_are_immutable_and_evaluation_is_reusable(self):
+        cargo = CargoProfile(fragility=5.0, label="Moderate")
+        objective = RouteObjective()
+        road = RoadSegment("N2", "N1", 0.9, 2.0)
+
+        self.assertEqual(cargo.label, "Moderate")
+        self.assertEqual(objective.travel_time, 1.0)
+        self.assertEqual(road.edge, ("N1", "N2"))
+        self.assertIsInstance(self.planner.astar("N1", "N1", constant_speed()).path, tuple)
+        self.assertEqual(len(master_comparison()), 7)
 
 
 if __name__ == "__main__":
