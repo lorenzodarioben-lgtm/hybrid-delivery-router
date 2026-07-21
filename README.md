@@ -1,5 +1,15 @@
 # Hybrid Delivery Router
 
+## Interactive simulator release
+
+The package now exposes typed scenario data, validated inputs, reopenable A*, optional search traces,
+immutable disruption overlays, journey segments, fuzzy explanations, route-score primitives, a CLI and
+a FastAPI service factory. The Box Hill-inspired graph remains a synthetic deterministic demonstration,
+not live mapping data. Scenario structure is documented in [docs/scenario-format.md](docs/scenario-format.md).
+
+Run `hybrid-router list` to inspect bundled scenarios. Build the included non-root Docker image with
+`docker build -t hybrid-delivery-router .`; it is a local production configuration, not a deployment URL.
+
 A compact Python route-planning project that combines A* search, a fuzzy safe-speed controller, and reactive replanning on a changing delivery network.
 
 ## Problem
