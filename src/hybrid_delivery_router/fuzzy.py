@@ -4,8 +4,19 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
+
+
+@dataclass(frozen=True, slots=True)
+class FuzzyExplanation:
+    fragility: float
+    bumpiness: float
+    memberships: tuple[tuple[str, float], ...]
+    fired_rules: tuple[tuple[str, str, float], ...]
+    consequent_centroids: tuple[tuple[str, float], ...]
+    safe_speed_kmh: float
 
 
 def trimf(x, abc):
