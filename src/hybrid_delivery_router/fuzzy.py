@@ -157,6 +157,29 @@ class FuzzySpeedController:
             self._cache[key] = self.infer(*key)["crisp"]
         return self._cache[key]
 
+    def explain(self, fragility: float, bumpiness: float) -> FuzzyExplanation:
+        """Return a typed explanation for finite, in-range public inputs."""
+        if not all(math.isfinite(value) and 0 <= value <= 10 for value in (fragility, bumpiness)):
+            raise ValueError("fragility and bumpiness must be finite values between 0 and 10")
+        result = self.infer(fragility, bumpiness)
+        memberships = tuple(
+            (f"fragility.{key}", value) for key, value in result["fragility_mu"].items()
+        )
+        memberships += tuple(
+            (f"bumpiness.{key}", value) for key, value in result["bumpiness_mu"].items()
+        )
+        rules = tuple(
+            (row["rule"], row["consequent"], row["alpha"]) for row in result["activations"]
+        )
+        return FuzzyExplanation(
+            fragility,
+            bumpiness,
+            memberships,
+            rules,
+            tuple(self.cons_centroid.items()),
+            result["crisp"],
+        )
+
     def monotonicity_violations(self, step: float = 0.5, tolerance: float = 1e-9) -> dict[str, int]:
         values = np.round(np.arange(0, 10 + step / 2, step), 4)
         surface = np.array(

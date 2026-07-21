@@ -28,7 +28,7 @@ from .domain import (
     UnknownNodeError,
     UnreachableRouteError,
 )
-from .fuzzy import FuzzySpeedController, FuzzyVariable, trapmf, trimf
+from .fuzzy import FuzzyExplanation, FuzzySpeedController, FuzzyVariable, trapmf, trimf
 from .journeys import simulate_segments
 from .map_model import DEFAULT_GOAL, DEFAULT_START, RNG_SEED, BoxHillDeliveryMap, ScenarioMap
 from .planner import HybridPlanner, RouteResult, constant_speed
@@ -44,6 +44,7 @@ __all__ = [
     "DEFAULT_START",
     "FRAGILITY_LEVELS",
     "FuzzySpeedController",
+    "FuzzyExplanation",
     "FuzzyVariable",
     "HybridPlanner",
     "InvalidRouteError",
