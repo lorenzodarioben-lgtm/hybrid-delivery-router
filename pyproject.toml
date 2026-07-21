@@ -5,6 +5,7 @@ description = "An explainable A* and fuzzy-logic delivery routing simulator."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "fastapi>=0.110",
   "numpy>=1.26",
 ]
 
