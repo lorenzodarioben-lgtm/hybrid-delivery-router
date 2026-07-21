@@ -1,0 +1,19 @@
+{
+  "id": "micro-grid",
+  "name": "Micro grid demonstration",
+  "description": "A four-intersection synthetic scenario for demonstrations and focused tests.",
+  "default_start": "A",
+  "default_goal": "D",
+  "nodes": [
+    {"id": "A", "coordinates": [0, 0], "label": "Start"},
+    {"id": "B", "coordinates": [1, 0], "label": "North"},
+    {"id": "C", "coordinates": [0, -1], "label": "South"},
+    {"id": "D", "coordinates": [1, -1], "label": "Destination"}
+  ],
+  "roads": [
+    {"start": "A", "end": "B", "distance_km": 0.4, "bumpiness": 2},
+    {"start": "A", "end": "C", "distance_km": 0.5, "bumpiness": 5},
+    {"start": "B", "end": "D", "distance_km": 0.4, "bumpiness": 3},
+    {"start": "C", "end": "D", "distance_km": 0.3, "bumpiness": 4}
+  ]
+}

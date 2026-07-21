@@ -27,6 +27,7 @@ from hybrid_delivery_router.evaluation import (
     master_comparison,
     phase_aware_breakdown,
 )
+from hybrid_delivery_router.scenarios import available_scenarios, load_scenario
 
 
 class HybridDeliveryRouterTest(unittest.TestCase):
@@ -165,6 +166,13 @@ class HybridDeliveryRouterTest(unittest.TestCase):
         self.assertEqual(road.edge, ("N1", "N2"))
         self.assertIsInstance(self.planner.astar("N1", "N1", constant_speed()).path, tuple)
         self.assertEqual(len(master_comparison()), 7)
+
+    def test_packaged_scenarios_are_loadable_and_deterministic(self):
+        self.assertEqual(available_scenarios(), ("box-hill-synthetic", "micro-grid"))
+        scenario = load_scenario("micro-grid")
+        self.assertEqual(scenario.default_start, "A")
+        self.assertEqual(tuple(node.identifier for node in scenario.nodes), ("A", "B", "C", "D"))
+        self.assertEqual(len(scenario.roads), 4)
 
 
 if __name__ == "__main__":

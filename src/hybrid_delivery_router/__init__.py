@@ -28,13 +28,15 @@ from .domain import (
     UnreachableRouteError,
 )
 from .fuzzy import FuzzySpeedController, FuzzyVariable, trapmf, trimf
-from .map_model import DEFAULT_GOAL, DEFAULT_START, RNG_SEED, BoxHillDeliveryMap
+from .map_model import DEFAULT_GOAL, DEFAULT_START, RNG_SEED, BoxHillDeliveryMap, ScenarioMap
 from .planner import HybridPlanner, RouteResult, constant_speed
+from .scenarios import DEFAULT_SCENARIO_ID, ScenarioLoadError, available_scenarios, load_scenario
 
 __all__ = [
     "BoxHillDeliveryMap",
     "CargoProfile",
     "DEFAULT_GOAL",
+    "DEFAULT_SCENARIO_ID",
     "DEFAULT_START",
     "FRAGILITY_LEVELS",
     "FuzzySpeedController",
@@ -57,12 +59,16 @@ __all__ = [
     "ScoreBreakdown",
     "SearchEvent",
     "SearchStatistics",
+    "ScenarioLoadError",
+    "ScenarioMap",
     "UnknownNodeError",
     "UnreachableRouteError",
     "cargo_top_speed",
+    "available_scenarios",
     "constant_speed",
     "fuzzy_informed_heuristic",
     "fuzzy_speed",
+    "load_scenario",
     "schoolzone_speed",
     "trapmf",
     "trimf",
