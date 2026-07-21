@@ -65,14 +65,18 @@ class HybridPlanner:
         closed: set[str] = set()
         selected = 0
         peak_frontier = 1
+        reopened = 0
+        stale_entries = 0
         trace: list[SearchEvent] = []
 
         while frontier:
             peak_frontier = max(peak_frontier, len(frontier))
             _priority, _tie, node, queued_g = heapq.heappop(frontier)
-            if queued_g != g_score.get(node):
+            if queued_g > g_score.get(node, math.inf):
+                stale_entries += 1
                 continue
             if node in closed:
+                stale_entries += 1
                 continue
             closed.add(node)
             selected += 1
@@ -97,7 +101,12 @@ class HybridPlanner:
                     path=path,
                     time_min=g_score[node],
                     distance_km=self.path_km(path),
-                    statistics=SearchStatistics(selected, peak_frontier),
+                    statistics=SearchStatistics(
+                        selected,
+                        peak_frontier,
+                        nodes_reopened=reopened,
+                        stale_entries_skipped=stale_entries,
+                    ),
                     trace=tuple(trace),
                     score=ScoreBreakdown(travel_time=g_score[node], total=g_score[node]),
                 )
@@ -108,6 +117,9 @@ class HybridPlanner:
                 )
                 candidate_g = g_score[node] + step_cost
                 if candidate_g < g_score.get(neighbor, math.inf):
+                    if neighbor in closed:
+                        closed.remove(neighbor)
+                        reopened += 1
                     g_score[neighbor] = candidate_g
                     parent[neighbor] = node
                     heapq.heappush(
@@ -119,7 +131,12 @@ class HybridPlanner:
             path=None,
             time_min=math.inf,
             distance_km=math.inf,
-            statistics=SearchStatistics(selected, peak_frontier),
+            statistics=SearchStatistics(
+                selected,
+                peak_frontier,
+                nodes_reopened=reopened,
+                stale_entries_skipped=stale_entries,
+            ),
             trace=tuple(trace),
         )
 
