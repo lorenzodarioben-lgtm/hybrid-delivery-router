@@ -9,6 +9,7 @@ from .agent import (
     fuzzy_speed,
     schoolzone_speed,
 )
+from .disruptions import DisruptionOverlay, RoadDisruption, school_zone_preset
 from .domain import (
     CargoProfile,
     InvalidRouteError,
@@ -27,8 +28,8 @@ from .domain import (
     UnknownNodeError,
     UnreachableRouteError,
 )
-from .disruptions import DisruptionOverlay, RoadDisruption, school_zone_preset
 from .fuzzy import FuzzySpeedController, FuzzyVariable, trapmf, trimf
+from .journeys import simulate_segments
 from .map_model import DEFAULT_GOAL, DEFAULT_START, RNG_SEED, BoxHillDeliveryMap, ScenarioMap
 from .planner import HybridPlanner, RouteResult, constant_speed
 from .scenarios import DEFAULT_SCENARIO_ID, ScenarioLoadError, available_scenarios, load_scenario
@@ -75,6 +76,7 @@ __all__ = [
     "load_scenario",
     "schoolzone_speed",
     "school_zone_preset",
+    "simulate_segments",
     "summarize_trace",
     "trapmf",
     "trimf",
