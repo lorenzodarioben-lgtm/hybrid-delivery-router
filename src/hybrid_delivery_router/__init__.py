@@ -27,6 +27,7 @@ from .domain import (
     UnknownNodeError,
     UnreachableRouteError,
 )
+from .disruptions import DisruptionOverlay, RoadDisruption, school_zone_preset
 from .fuzzy import FuzzySpeedController, FuzzyVariable, trapmf, trimf
 from .map_model import DEFAULT_GOAL, DEFAULT_START, RNG_SEED, BoxHillDeliveryMap, ScenarioMap
 from .planner import HybridPlanner, RouteResult, constant_speed
@@ -37,6 +38,7 @@ __all__ = [
     "BoxHillDeliveryMap",
     "CargoProfile",
     "DEFAULT_GOAL",
+    "DisruptionOverlay",
     "DEFAULT_SCENARIO_ID",
     "DEFAULT_START",
     "FRAGILITY_LEVELS",
@@ -50,6 +52,7 @@ __all__ = [
     "NetworkValidationError",
     "Node",
     "RoadNetwork",
+    "RoadDisruption",
     "RoadSegment",
     "RouteObjective",
     "RoutePlan",
@@ -71,6 +74,7 @@ __all__ = [
     "fuzzy_speed",
     "load_scenario",
     "schoolzone_speed",
+    "school_zone_preset",
     "summarize_trace",
     "trapmf",
     "trimf",
