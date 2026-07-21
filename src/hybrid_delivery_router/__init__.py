@@ -31,6 +31,7 @@ from .fuzzy import FuzzySpeedController, FuzzyVariable, trapmf, trimf
 from .map_model import DEFAULT_GOAL, DEFAULT_START, RNG_SEED, BoxHillDeliveryMap, ScenarioMap
 from .planner import HybridPlanner, RouteResult, constant_speed
 from .scenarios import DEFAULT_SCENARIO_ID, ScenarioLoadError, available_scenarios, load_scenario
+from .tracing import summarize_trace
 
 __all__ = [
     "BoxHillDeliveryMap",
@@ -70,6 +71,7 @@ __all__ = [
     "fuzzy_speed",
     "load_scenario",
     "schoolzone_speed",
+    "summarize_trace",
     "trapmf",
     "trimf",
 ]

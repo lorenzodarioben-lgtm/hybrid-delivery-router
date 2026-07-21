@@ -8,7 +8,7 @@ import math
 from collections.abc import Callable
 from typing import Protocol
 
-from .domain import RoutePlan, ScoreBreakdown, SearchEvent, SearchStatistics
+from .domain import RoutePlan, ScoreBreakdown, SearchEvent, SearchEventKind, SearchStatistics
 
 SpeedFunction = Callable[[str, str], float]
 HeuristicFunction = Callable[[str, str], float]
@@ -69,6 +69,32 @@ class HybridPlanner:
         stale_entries = 0
         trace: list[SearchEvent] = []
 
+        def record(
+            kind: SearchEventKind,
+            node: str,
+            g_min: float,
+            h_min: float,
+            *,
+            edge: tuple[str, str] | None = None,
+            related_node: str | None = None,
+            accepted: bool | None = None,
+        ) -> None:
+            if record_trace:
+                trace.append(
+                    SearchEvent(
+                        kind=kind,
+                        order=len(trace) + 1,
+                        node=node,
+                        g_min=g_min,
+                        h_min=h_min,
+                        f_min=g_min + h_min,
+                        edge=edge,
+                        related_node=related_node,
+                        frontier_size=len(frontier),
+                        accepted=accepted,
+                    )
+                )
+
         while frontier:
             peak_frontier = max(peak_frontier, len(frontier))
             _priority, _tie, node, queued_g = heapq.heappop(frontier)
@@ -82,21 +108,12 @@ class HybridPlanner:
             selected += 1
             h_value = h(node, goal)
 
-            if record_trace:
-                trace.append(
-                    SearchEvent(
-                        kind="select",
-                        order=selected,
-                        node=node,
-                        g_min=g_score[node],
-                        h_min=h_value,
-                        f_min=g_score[node] + h_value,
-                        frontier_size=len(frontier),
-                    )
-                )
+            record("select", node, g_score[node], h_value)
 
             if node == goal:
                 path = self._rebuild(parent, start, goal)
+                record("goal", node, g_score[node], h_value, accepted=True)
+                record("reconstruct", node, g_score[node], h_value, accepted=True)
                 return RoutePlan(
                     path=path,
                     time_min=g_score[node],
@@ -116,15 +133,52 @@ class HybridPlanner:
                     self.network.edge_km(node, neighbor), speed_fn(node, neighbor)
                 )
                 candidate_g = g_score[node] + step_cost
+                neighbor_h = h(neighbor, goal)
+                record(
+                    "consider",
+                    node,
+                    candidate_g,
+                    neighbor_h,
+                    edge=(node, neighbor),
+                    related_node=neighbor,
+                )
                 if candidate_g < g_score.get(neighbor, math.inf):
                     if neighbor in closed:
                         closed.remove(neighbor)
                         reopened += 1
+                        record(
+                            "reopen",
+                            neighbor,
+                            candidate_g,
+                            neighbor_h,
+                            edge=(node, neighbor),
+                            related_node=node,
+                            accepted=True,
+                        )
                     g_score[neighbor] = candidate_g
                     parent[neighbor] = node
                     heapq.heappush(
                         frontier,
-                        (candidate_g + h(neighbor, goal), next(tie_break), neighbor, candidate_g),
+                        (candidate_g + neighbor_h, next(tie_break), neighbor, candidate_g),
+                    )
+                    record(
+                        "relax",
+                        neighbor,
+                        candidate_g,
+                        neighbor_h,
+                        edge=(node, neighbor),
+                        related_node=node,
+                        accepted=True,
+                    )
+                else:
+                    record(
+                        "reject",
+                        neighbor,
+                        candidate_g,
+                        neighbor_h,
+                        edge=(node, neighbor),
+                        related_node=node,
+                        accepted=False,
                     )
 
         return RoutePlan(

@@ -124,6 +124,7 @@ class SearchEvent:
     h_min: float
     f_min: float
     edge: Edge | None = None
+    related_node: str | None = None
     frontier_size: int = 0
     accepted: bool | None = None
 
