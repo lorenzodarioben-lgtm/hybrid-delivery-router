@@ -1,7 +1,7 @@
 import math
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -18,7 +18,11 @@ from hybrid_delivery_router import (
     fuzzy_speed,
     schoolzone_speed,
 )
-from hybrid_delivery_router.evaluation import admissibility_audit, bad_school_zone_heuristic, phase_aware_breakdown
+from hybrid_delivery_router.evaluation import (
+    admissibility_audit,
+    bad_school_zone_heuristic,
+    phase_aware_breakdown,
+)
 
 
 class HybridDeliveryRouterTest(unittest.TestCase):
@@ -75,23 +79,33 @@ class HybridDeliveryRouterTest(unittest.TestCase):
         self.assertAlmostEqual(self.controller.safe_speed(5, 5), 70.0, places=2)
         self.assertAlmostEqual(self.controller.safe_speed(9, 9), 51.64, places=2)
         self.assertTrue(40 <= self.controller.safe_speed(float("nan"), 3) <= 100)
-        self.assertEqual(self.controller.monotonicity_violations(), {"fragility": 0, "bumpiness": 0})
+        self.assertEqual(
+            self.controller.monotonicity_violations(), {"fragility": 0, "bumpiness": 0}
+        )
 
     def test_school_zone_caps_only_when_active(self):
         capped = tuple(sorted(next(iter(self.env.capped_edges))))
-        uncapped = next(edge for edge in self.env.edge_list() if frozenset(edge) not in self.env.capped_edges)
+        uncapped = next(
+            edge for edge in self.env.edge_list() if frozenset(edge) not in self.env.capped_edges
+        )
         speed = schoolzone_speed(self.env, self.controller, 2.0)
 
         self.env.set_school_zone(False)
-        self.assertAlmostEqual(speed(*capped), self.controller.safe_speed(2.0, self.env.edge_bumpiness(*capped)))
+        self.assertAlmostEqual(
+            speed(*capped), self.controller.safe_speed(2.0, self.env.edge_bumpiness(*capped))
+        )
 
         self.env.set_school_zone(True)
         self.assertEqual(speed(*capped), 40.0)
-        self.assertAlmostEqual(speed(*uncapped), self.controller.safe_speed(2.0, self.env.edge_bumpiness(*uncapped)))
+        self.assertAlmostEqual(
+            speed(*uncapped), self.controller.safe_speed(2.0, self.env.edge_bumpiness(*uncapped))
+        )
 
     def test_fuzzy_routes_and_replanning(self):
         robust_h = fuzzy_informed_heuristic(self.env, cargo_top_speed(self.controller, 2.0))
-        robust = self.planner.astar(DEFAULT_START, DEFAULT_GOAL, fuzzy_speed(self.env, self.controller, 2.0), h_fn=robust_h)
+        robust = self.planner.astar(
+            DEFAULT_START, DEFAULT_GOAL, fuzzy_speed(self.env, self.controller, 2.0), h_fn=robust_h
+        )
         self.assertEqual(robust.path, ["N1", "N2", "N9", "N14", "N15", "N18"])
         self.assertAlmostEqual(robust.time_min, 2.0322, places=4)
         self.assertEqual(robust.nodes_expanded, 15)
@@ -103,19 +117,31 @@ class HybridDeliveryRouterTest(unittest.TestCase):
         self.assertAlmostEqual(journey.actual_min, 2.8785, places=4)
         self.assertEqual(journey.total_planning_nodes, 31)
 
-        phase_total = sum(row["time_min"] for row in phase_aware_breakdown(journey, self.env, self.controller))
+        phase_total = sum(
+            row["time_min"] for row in phase_aware_breakdown(journey, self.env, self.controller)
+        )
         self.assertAlmostEqual(phase_total, journey.actual_min, places=9)
 
     def test_heuristic_audits(self):
-        good = admissibility_audit(self.env, self.planner, DEFAULT_GOAL, constant_speed(100.0), self.planner.heuristic)
-        bad = admissibility_audit(self.env, self.planner, DEFAULT_GOAL, constant_speed(100.0), bad_school_zone_heuristic(self.env))
+        good = admissibility_audit(
+            self.env, self.planner, DEFAULT_GOAL, constant_speed(100.0), self.planner.heuristic
+        )
+        bad = admissibility_audit(
+            self.env,
+            self.planner,
+            DEFAULT_GOAL,
+            constant_speed(100.0),
+            bad_school_zone_heuristic(self.env),
+        )
         self.assertEqual(sum(not row["admissible"] for row in good), 0)
         self.assertEqual(sum(not row["admissible"] for row in bad), 13)
 
     def test_fuzzy_heuristic_is_admissible_and_matches_ucs(self):
         for fragility in (2.0, 5.0, 8.0):
             speed = fuzzy_speed(self.env, self.controller, fragility)
-            heuristic = fuzzy_informed_heuristic(self.env, cargo_top_speed(self.controller, fragility))
+            heuristic = fuzzy_informed_heuristic(
+                self.env, cargo_top_speed(self.controller, fragility)
+            )
             audit = admissibility_audit(self.env, self.planner, DEFAULT_GOAL, speed, heuristic)
             self.assertEqual(sum(not row["admissible"] for row in audit), 0)
             astar = self.planner.astar(DEFAULT_START, DEFAULT_GOAL, speed, h_fn=heuristic)

@@ -5,8 +5,8 @@ from __future__ import annotations
 import heapq
 import itertools
 import math
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Set, Tuple
 
 from .map_model import BoxHillDeliveryMap
 
@@ -16,12 +16,12 @@ HeuristicFunction = Callable[[str, str], float]
 
 @dataclass(frozen=True)
 class RouteResult:
-    path: Optional[List[str]]
+    path: list[str] | None
     time_min: float
     dist_km: float
     nodes_expanded: int
     max_frontier: int
-    trace: List[dict] = field(default_factory=list)
+    trace: list[dict] = field(default_factory=list)
 
 
 class HybridPlanner:
@@ -44,18 +44,18 @@ class HybridPlanner:
         start: str,
         goal: str,
         speed_fn: SpeedFunction,
-        h_fn: Optional[HeuristicFunction] = None,
+        h_fn: HeuristicFunction | None = None,
         record_trace: bool = False,
     ) -> RouteResult:
         h = h_fn if h_fn is not None else self.heuristic
         tie_break = itertools.count()
-        frontier: List[Tuple[float, int, str]] = [(h(start, goal), next(tie_break), start)]
-        g_score: Dict[str, float] = {start: 0.0}
-        parent: Dict[str, str] = {}
-        closed: Set[str] = set()
+        frontier: list[tuple[float, int, str]] = [(h(start, goal), next(tie_break), start)]
+        g_score: dict[str, float] = {start: 0.0}
+        parent: dict[str, str] = {}
+        closed: set[str] = set()
         popped = 0
         peak_frontier = 1
-        trace: List[dict] = []
+        trace: list[dict] = []
 
         while frontier:
             peak_frontier = max(peak_frontier, len(frontier))
@@ -67,25 +67,33 @@ class HybridPlanner:
 
             if record_trace:
                 h_value = h(node, goal)
-                trace.append({
-                    "order": popped,
-                    "node": node,
-                    "g_min": round(g_score[node], 4),
-                    "h_min": round(h_value, 4),
-                    "f_min": round(g_score[node] + h_value, 4),
-                })
+                trace.append(
+                    {
+                        "order": popped,
+                        "node": node,
+                        "g_min": round(g_score[node], 4),
+                        "h_min": round(h_value, 4),
+                        "f_min": round(g_score[node] + h_value, 4),
+                    }
+                )
 
             if node == goal:
                 path = self._rebuild(parent, start, goal)
-                return RouteResult(path, g_score[node], self.path_km(path), popped, peak_frontier, trace)
+                return RouteResult(
+                    path, g_score[node], self.path_km(path), popped, peak_frontier, trace
+                )
 
             for neighbor in self.env.neighbours(node):
-                step_cost = self.edge_time_min(self.env.edge_km(node, neighbor), speed_fn(node, neighbor))
+                step_cost = self.edge_time_min(
+                    self.env.edge_km(node, neighbor), speed_fn(node, neighbor)
+                )
                 candidate_g = g_score[node] + step_cost
                 if neighbor not in g_score or candidate_g < g_score[neighbor]:
                     g_score[neighbor] = candidate_g
                     parent[neighbor] = node
-                    heapq.heappush(frontier, (candidate_g + h(neighbor, goal), next(tie_break), neighbor))
+                    heapq.heappush(
+                        frontier, (candidate_g + h(neighbor, goal), next(tie_break), neighbor)
+                    )
 
         return RouteResult(None, math.inf, math.inf, popped, peak_frontier, trace)
 
@@ -93,7 +101,7 @@ class HybridPlanner:
         return self.astar(start, goal, speed_fn, h_fn=lambda _node, _goal: 0.0)
 
     @staticmethod
-    def _rebuild(parent: Dict[str, str], start: str, goal: str) -> List[str]:
+    def _rebuild(parent: dict[str, str], start: str, goal: str) -> list[str]:
         if start == goal:
             return [start]
         path = [goal]
@@ -103,12 +111,14 @@ class HybridPlanner:
             path.append(current)
         return path[::-1]
 
-    def path_km(self, path: List[str]) -> float:
+    def path_km(self, path: list[str]) -> float:
         return sum(self.env.edge_km(path[i], path[i + 1]) for i in range(len(path) - 1))
 
-    def path_time_min(self, path: List[str], speed_fn: SpeedFunction) -> float:
+    def path_time_min(self, path: list[str], speed_fn: SpeedFunction) -> float:
         return sum(
-            self.edge_time_min(self.env.edge_km(path[i], path[i + 1]), speed_fn(path[i], path[i + 1]))
+            self.edge_time_min(
+                self.env.edge_km(path[i], path[i + 1]), speed_fn(path[i], path[i + 1])
+            )
             for i in range(len(path) - 1)
         )
 

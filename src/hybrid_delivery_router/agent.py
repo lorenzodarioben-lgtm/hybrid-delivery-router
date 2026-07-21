@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import List
 
 from .fuzzy import FuzzySpeedController
 from .map_model import BoxHillDeliveryMap
@@ -13,13 +12,22 @@ from .planner import HybridPlanner, SpeedFunction
 FRAGILITY_LEVELS = {"Robust (2)": 2.0, "Moderate (5)": 5.0, "Delicate (8)": 8.0}
 
 
-def fuzzy_speed(env: BoxHillDeliveryMap, controller: FuzzySpeedController, fragility: float) -> SpeedFunction:
+def fuzzy_speed(
+    env: BoxHillDeliveryMap, controller: FuzzySpeedController, fragility: float
+) -> SpeedFunction:
     return lambda u, v: controller.safe_speed(fragility, env.edge_bumpiness(u, v))
 
 
-def schoolzone_speed(env: BoxHillDeliveryMap, controller: FuzzySpeedController, fragility: float) -> SpeedFunction:
+def schoolzone_speed(
+    env: BoxHillDeliveryMap, controller: FuzzySpeedController, fragility: float
+) -> SpeedFunction:
     def speed(u: str, v: str) -> float:
-        return 40.0 if env.is_capped(u, v) else controller.safe_speed(fragility, env.edge_bumpiness(u, v))
+        return (
+            40.0
+            if env.is_capped(u, v)
+            else controller.safe_speed(fragility, env.edge_bumpiness(u, v))
+        )
+
     return speed
 
 
@@ -34,13 +42,13 @@ def fuzzy_informed_heuristic(env: BoxHillDeliveryMap, top_speed_kmh: float):
 @dataclass(frozen=True)
 class JourneyRecord:
     fragility: float
-    planned_path: List[str]
+    planned_path: list[str]
     planned_km: float
     planned_min: float
     planned_nodes: int
     trigger_after: int
     current_node: str
-    actual_path: List[str]
+    actual_path: list[str]
     actual_km: float
     actual_min: float
     replan_nodes: int
@@ -54,7 +62,9 @@ class JourneyRecord:
 class ReactiveAgent:
     """Plan, sense a mid-route speed cap, and replan from the current node."""
 
-    def __init__(self, env: BoxHillDeliveryMap, controller: FuzzySpeedController, planner: HybridPlanner) -> None:
+    def __init__(
+        self, env: BoxHillDeliveryMap, controller: FuzzySpeedController, planner: HybridPlanner
+    ) -> None:
         self.env = env
         self.controller = controller
         self.planner = planner

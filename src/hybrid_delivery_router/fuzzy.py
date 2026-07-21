@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Callable, Dict, Tuple
+from collections.abc import Callable
 
 import numpy as np
 
@@ -41,8 +41,8 @@ class FuzzyVariable:
         self.name = name
         self.universe = np.asarray(universe, dtype=float)
         self.unit = unit
-        self.mfs: Dict[str, Callable] = {}
-        self._curve: Dict[str, np.ndarray] = {}
+        self.mfs: dict[str, Callable] = {}
+        self._curve: dict[str, np.ndarray] = {}
 
     def add(self, label: str, fn: Callable):
         self.mfs[label] = fn
@@ -54,7 +54,7 @@ class FuzzyVariable:
         value = float(np.clip(value, self.universe[0], self.universe[-1]))
         return float(self.mfs[label](np.array([value]))[0])
 
-    def fuzzify(self, value: float) -> Dict[str, float]:
+    def fuzzify(self, value: float) -> dict[str, float]:
         return {label: self.mu(label, value) for label in self.mfs}
 
     def curve(self, label: str) -> np.ndarray:
@@ -94,10 +94,13 @@ class FuzzySpeedController:
             .add("Fast", lambda x: trapmf(x, (70, 85, 100, 100)))
         )
         self.cons_centroid = {
-            label: float((self.speed_universe * self.speed.curve(label)).sum() / self.speed.curve(label).sum())
+            label: float(
+                (self.speed_universe * self.speed.curve(label)).sum()
+                / self.speed.curve(label).sum()
+            )
             for label in self.speed.mfs
         }
-        self.rules: Dict[Tuple[str, str], str] = {
+        self.rules: dict[tuple[str, str], str] = {
             ("Robust", "Smooth"): "Fast",
             ("Robust", "Moderate"): "Fast",
             ("Robust", "Rough"): "Medium",
@@ -108,7 +111,7 @@ class FuzzySpeedController:
             ("Delicate", "Moderate"): "Slow",
             ("Delicate", "Rough"): "Slow",
         }
-        self._cache: Dict[Tuple[float, float], float] = {}
+        self._cache: dict[tuple[float, float], float] = {}
 
     def infer(self, fragility: float, bumpiness: float) -> dict:
         fragility = _finite_or_default(fragility, 0.0)
@@ -122,15 +125,21 @@ class FuzzySpeedController:
         for (frag_label, bump_label), speed_label in self.rules.items():
             alpha = min(f_membership[frag_label], b_membership[bump_label])
             if alpha > 0:
-                activations.append({
-                    "rule": f"{frag_label} & {bump_label}",
-                    "consequent": speed_label,
-                    "alpha": round(alpha, 4),
-                })
+                activations.append(
+                    {
+                        "rule": f"{frag_label} & {bump_label}",
+                        "consequent": speed_label,
+                        "alpha": round(alpha, 4),
+                    }
+                )
                 numerator += alpha * self.cons_centroid[speed_label]
                 denominator += alpha
 
-        crisp = numerator / denominator if denominator else float(np.mean(list(self.cons_centroid.values())))
+        crisp = (
+            numerator / denominator
+            if denominator
+            else float(np.mean(list(self.cons_centroid.values())))
+        )
         crisp = float(np.clip(crisp, 40.0, 100.0))
         return {
             "fragility_mu": f_membership,
@@ -150,7 +159,12 @@ class FuzzySpeedController:
 
     def monotonicity_violations(self, step: float = 0.5, tolerance: float = 1e-9) -> dict[str, int]:
         values = np.round(np.arange(0, 10 + step / 2, step), 4)
-        surface = np.array([[self.safe_speed(fragility, bumpiness) for bumpiness in values] for fragility in values])
+        surface = np.array(
+            [
+                [self.safe_speed(fragility, bumpiness) for bumpiness in values]
+                for fragility in values
+            ]
+        )
         fragility_violations = int((np.diff(surface, axis=0) > tolerance).sum())
         bumpiness_violations = int((np.diff(surface, axis=1) > tolerance).sum())
         return {"fragility": fragility_violations, "bumpiness": bumpiness_violations}

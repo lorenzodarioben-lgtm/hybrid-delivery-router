@@ -1,7 +1,7 @@
 [project]
 name = "hybrid-delivery-router"
 version = "0.1.0"
-description = "A hybrid A* and fuzzy-logic delivery router with reactive replanning."
+description = "An explainable A* and fuzzy-logic delivery routing simulator."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -9,12 +9,40 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-notebook = [
-  "pandas>=2.0",
-  "matplotlib>=3.7",
-  "notebook>=7.0",
-  "nbconvert>=7.0",
+dev = [
+  "build>=1.2",
+  "mypy>=1.10",
+  "pytest>=8.2",
+  "pytest-cov>=5.0",
+  "ruff>=0.5",
 ]
+notebook = [
+  "matplotlib>=3.7",
+  "nbconvert>=7.0",
+  "notebook>=7.0",
+  "pandas>=2.0",
+]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --cov=hybrid_delivery_router --cov-report=term-missing --cov-fail-under=85"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["hybrid_delivery_router"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+files = ["src"]
+python_version = "3.12"
+check_untyped_defs = true
 
 [tool.setuptools]
 package-dir = {"" = "src"}
