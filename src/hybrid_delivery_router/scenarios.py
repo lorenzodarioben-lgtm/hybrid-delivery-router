@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
-from .domain import Node, RoadNetwork, RoadSegment, RoutingError
+from .domain import NetworkValidationError, Node, RoadNetwork, RoadSegment, RoutingError
 
 SCENARIO_DIRECTORY = Path(__file__).with_name("data")
 DEFAULT_SCENARIO_ID = "box-hill-synthetic"
@@ -65,7 +66,7 @@ def _network_from_payload(payload: dict[str, Any], requested_id: str) -> RoadNet
             )
             for item in payload["roads"]
         )
-        return RoadNetwork(
+        network = RoadNetwork(
             identifier=str(payload["id"]),
             name=str(payload["name"]),
             description=str(payload.get("description", "")),
@@ -76,7 +77,45 @@ def _network_from_payload(payload: dict[str, Any], requested_id: str) -> RoadNet
         )
     except (KeyError, IndexError, TypeError, ValueError) as error:
         raise ScenarioLoadError(f"Scenario {requested_id!r} has an invalid structure") from error
+    validate_network(network)
+    return network
 
 
 def _optional_string(value: object) -> str | None:
     return None if value is None else str(value)
+
+
+def validate_network(network: RoadNetwork) -> None:
+    """Validate graph structure and metadata without requiring global reachability."""
+
+    identifiers = [node.identifier for node in network.nodes]
+    if not identifiers or len(identifiers) != len(set(identifiers)):
+        raise NetworkValidationError("Nodes must have unique identifiers")
+    for node in network.nodes:
+        if not node.identifier:
+            raise NetworkValidationError("Node identifiers must not be empty")
+        if not all(math.isfinite(value) for value in node.coordinates):
+            raise NetworkValidationError(f"Node {node.identifier!r} has non-finite coordinates")
+
+    node_ids = set(identifiers)
+    endpoints = (
+        ("default_start", network.default_start),
+        ("default_goal", network.default_goal),
+    )
+    for endpoint_name, endpoint in endpoints:
+        if endpoint is not None and endpoint not in node_ids:
+            raise NetworkValidationError(f"{endpoint_name} {endpoint!r} is not a node")
+
+    edges: set[tuple[str, str]] = set()
+    for road in network.roads:
+        if road.start == road.end or road.start not in node_ids or road.end not in node_ids:
+            raise NetworkValidationError(
+                f"Road {road.start!r} -> {road.end!r} has invalid endpoints"
+            )
+        if not math.isfinite(road.distance_km) or road.distance_km <= 0:
+            raise NetworkValidationError(f"Road {road.edge!r} needs a positive finite distance")
+        if not math.isfinite(road.bumpiness) or not 0 <= road.bumpiness <= 10:
+            raise NetworkValidationError(f"Road {road.edge!r} needs bumpiness within 0 to 10")
+        if road.edge in edges:
+            raise NetworkValidationError(f"Road {road.edge!r} is defined more than once")
+        edges.add(road.edge)

@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 import random
 
-from .domain import RoadNetwork
-from .scenarios import DEFAULT_SCENARIO_ID, load_scenario
+from .domain import InvalidRouteError, NetworkValidationError, RoadNetwork, UnknownNodeError
+from .scenarios import DEFAULT_SCENARIO_ID, load_scenario, validate_network
 
 RNG_SEED = 215
 DEFAULT_START = "N1"
@@ -19,6 +19,7 @@ class ScenarioMap:
     V_MAX = 100.0
 
     def __init__(self, network: RoadNetwork) -> None:
+        validate_network(network)
         self.network = network
         self.coords = {node.identifier: node.coordinates for node in network.nodes}
         self.landmarks = {node.identifier: node.label for node in network.nodes}
@@ -30,9 +31,24 @@ class ScenarioMap:
             self.bumpiness[frozenset((road.start, road.end))] = road.bumpiness
         for node, neighbours in self.roads_km.items():
             self.roads_km[node] = dict(sorted(neighbours.items()))
+        self._validate_reciprocal_roads()
         self.km_per_grid = self._minimum_km_per_grid()
         self.school_zone_active = False
         self.capped_edges: set[frozenset[str]] = set()
+
+    def _validate_reciprocal_roads(self) -> None:
+        for start, neighbours in self.roads_km.items():
+            for end, distance in neighbours.items():
+                if start not in self.roads_km.get(end, {}):
+                    raise NetworkValidationError(f"Road {start!r} -> {end!r} is not reciprocal")
+                if self.roads_km[end][start] != distance:
+                    raise NetworkValidationError(
+                        f"Road {start!r} -> {end!r} has mismatched distance"
+                    )
+                if frozenset((start, end)) not in self.bumpiness:
+                    raise NetworkValidationError(
+                        f"Road {start!r} -> {end!r} has no bumpiness metadata"
+                    )
 
     def _minimum_km_per_grid(self) -> float:
         ratios = (
@@ -58,18 +74,25 @@ class ScenarioMap:
         return first, second
 
     def neighbours(self, node: str) -> list[str]:
+        self._require_node(node)
         return list(self.roads_km[node])
 
     def edge_km(self, start: str, end: str) -> float:
+        self._require_edge(start, end)
         return self.roads_km[start][end]
 
     def edge_bumpiness(self, start: str, end: str) -> float:
+        self._require_edge(start, end)
         return self.bumpiness[frozenset((start, end))]
 
     def straight_line_km(self, start: str, end: str) -> float:
+        self._require_node(start)
+        self._require_node(end)
         return self.km_per_grid * math.dist(self.coords[start], self.coords[end])
 
     def apply_school_zone(self, fraction: float = 0.60, seed: int = RNG_SEED) -> None:
+        if not math.isfinite(fraction) or not 0 <= fraction <= 1:
+            raise ValueError("School-zone fraction must be finite and between 0 and 1")
         count = round(fraction * len(self.edge_keys()))
         self.capped_edges = set(random.Random(seed).sample(self.edge_keys(), count))
 
@@ -91,6 +114,24 @@ class ScenarioMap:
                     seen.add(neighbour)
                     stack.append(neighbour)
         return len(seen) == len(self.roads_km)
+
+    def validate_path(self, path: tuple[str, ...] | list[str]) -> None:
+        if not path:
+            raise InvalidRouteError("A route path must contain at least one node")
+        for node in path:
+            self._require_node(node)
+        for start, end in zip(path, path[1:]):
+            self._require_edge(start, end)
+
+    def _require_node(self, node: str) -> None:
+        if node not in self.roads_km:
+            raise UnknownNodeError(f"Unknown node: {node!r}")
+
+    def _require_edge(self, start: str, end: str) -> None:
+        self._require_node(start)
+        self._require_node(end)
+        if end not in self.roads_km[start]:
+            raise InvalidRouteError(f"No road exists between {start!r} and {end!r}")
 
     def summary(self) -> dict[str, object]:
         distances = [

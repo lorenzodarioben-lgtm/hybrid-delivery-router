@@ -53,6 +53,8 @@ class HybridPlanner:
         h_fn: HeuristicFunction | None = None,
         record_trace: bool = False,
     ) -> RoutePlan:
+        self.network.neighbours(start)
+        self.network.neighbours(goal)
         h = h_fn if h_fn is not None else self.heuristic
         tie_break = itertools.count()
         frontier: list[tuple[float, int, str, float]] = [
@@ -136,11 +138,17 @@ class HybridPlanner:
         return tuple(reversed(path))
 
     def path_km(self, path: tuple[str, ...] | list[str]) -> float:
+        validate_path = getattr(self.network, "validate_path", None)
+        if callable(validate_path):
+            validate_path(path)
         return sum(
             self.network.edge_km(path[index], path[index + 1]) for index in range(len(path) - 1)
         )
 
     def path_time_min(self, path: tuple[str, ...] | list[str], speed_fn: SpeedFunction) -> float:
+        validate_path = getattr(self.network, "validate_path", None)
+        if callable(validate_path):
+            validate_path(path)
         return sum(
             self.edge_time_min(
                 self.network.edge_km(path[index], path[index + 1]),
